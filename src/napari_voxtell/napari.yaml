@@ -1,0 +1,14 @@
+name: napari-voxtell
+display_name: Voxtell
+# use 'hidden' to remove plugin from napari hub search results
+visibility: public
+# see https://napari.org/stable/plugins/manifest.html for valid categories
+categories: ["Annotation", "Segmentation"]
+contributions:
+  commands:
+    - id: napari-voxtell.VoxtellWidget
+      python_name: napari_voxtell:VoxtellWidget
+      title: Voxtell
+  widgets:
+    - command: napari-voxtell.VoxtellWidget
+      display_name: Voxtell
