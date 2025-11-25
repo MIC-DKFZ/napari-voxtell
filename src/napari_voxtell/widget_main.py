@@ -98,18 +98,18 @@ class VoxtellWidget(VoxtellGUI):
         # Create and start the processing thread
         self.processing_thread = ProcessingThread(image_data)
         self.processing_thread.finished.connect(
-            lambda mask: self._on_processing_finished(mask, image_layer)
+            lambda mask: self._on_processing_finished(mask, image_layer, text)
         )
         self.processing_thread.start()
 
-    def _on_processing_finished(self, random_mask, image_layer):
+    def _on_processing_finished(self, random_mask, image_layer, text):
         """Handle the completion of processing."""
         # Stop processing animation
         self._stop_processing()
 
         # Create a new labels layer for each submission with unique name
         self.mask_counter += 1
-        label_layer_name = f"Voxtell - Segmentation {self.mask_counter}"
+        label_layer_name = text[:100] + "..." if len(text) > 100 else text
 
         # Preserve all spatial properties from the image layer
         self._viewer.add_labels(
