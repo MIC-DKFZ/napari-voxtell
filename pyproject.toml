@@ -27,6 +27,7 @@ dependencies = [
     "numpy",
     "qtpy",
     "napari[all]",
+    "napari-nifti",
 ]
 
 [project.optional-dependencies]
