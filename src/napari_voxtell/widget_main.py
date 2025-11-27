@@ -1,12 +1,18 @@
 import time
 from typing import Optional
+import SimpleITK as sitk
+import nibabel as nib
 
 import numpy as np
 from napari.viewer import Viewer
 from qtpy.QtCore import QThread, QTimer, Signal
 from qtpy.QtWidgets import QWidget
+from nibabel.orientations import io_orientation, axcodes2ornt, ornt_transform, apply_orientation
+import torch
 
 from napari_voxtell.widget_gui import VoxtellGUI
+
+from nnunetv2.inference.VoxTellPredictor import VoxTellPredictor
 
 
 class ProcessingThread(QThread):
@@ -14,9 +20,10 @@ class ProcessingThread(QThread):
 
     finished = Signal(np.ndarray)
 
-    def __init__(self, image_data):
+    def __init__(self, image_data, text_prompts):
         super().__init__()
         self.image_data = image_data
+        self.text_prompts = text_prompts
 
     def run(self):
         """Run the processing in a separate thread."""
@@ -26,7 +33,13 @@ class ProcessingThread(QThread):
         # Generate a random mask with the same shape as the image
         random_mask = np.random.randint(0, 2, size=self.image_data.shape, dtype=np.uint8)
 
-        self.finished.emit(random_mask)
+        predictor = VoxTellPredictor(
+            model_dir="path",
+            device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        )
+        voxtell_seg = predictor.predict_single_image(self.image_data, self.text_prompts).astype(np.uint8)[0]
+
+        self.finished.emit(voxtell_seg)
 
 
 class VoxtellWidget(VoxtellGUI):
@@ -92,20 +105,33 @@ class VoxtellWidget(VoxtellGUI):
         # Get the image properties
         image_data = image_layer.data
 
+        # Reorient the image to RAS using SimpleITK
+        original_orientation = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(image_layer.metadata["direction"].flatten())
+        itk_image = sitk.GetImageFromArray(image_data)
+        itk_image.SetDirection(image_layer.metadata["direction"].flatten())
+        itk_image = sitk.DICOMOrient(itk_image, "RAS")
+        image_data = sitk.GetArrayFromImage(itk_image)
+
         # Start processing animation
         self._start_processing()
 
         # Create and start the processing thread
-        self.processing_thread = ProcessingThread(image_data)
+        self.processing_thread = ProcessingThread(image_data, text)
         self.processing_thread.finished.connect(
-            lambda mask: self._on_processing_finished(mask, image_layer, text)
+            lambda mask: self._on_processing_finished(mask, image_layer, text, original_orientation)
         )
         self.processing_thread.start()
 
-    def _on_processing_finished(self, random_mask, image_layer, text):
+    def _on_processing_finished(self, mask, image_layer, text, original_orientation):
         """Handle the completion of processing."""
         # Stop processing animation
         self._stop_processing()
+
+        # Reorient the mask back to the original orientation
+        itk_mask = sitk.GetImageFromArray(mask)
+        itk_mask.SetDirection((-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0))  # RAS direction
+        itk_mask = sitk.DICOMOrient(itk_mask, original_orientation)
+        mask = sitk.GetArrayFromImage(itk_mask)
 
         # Create a new labels layer for each submission with unique name
         self.mask_counter += 1
@@ -113,7 +139,7 @@ class VoxtellWidget(VoxtellGUI):
 
         # Preserve all spatial properties from the image layer
         self._viewer.add_labels(
-            random_mask,
+            mask,
             name=label_layer_name,
             scale=image_layer.scale,
             translate=image_layer.translate,
