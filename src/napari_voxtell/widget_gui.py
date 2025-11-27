@@ -6,7 +6,9 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QComboBox,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QTextEdit,
@@ -34,6 +36,12 @@ class VoxtellGUI(QWidget):
         _main_layout = QVBoxLayout()
         self.setLayout(_main_layout)
 
+        # Add model selection
+        _main_layout.addWidget(self._init_model_selection())
+
+        # Add initialization button
+        _main_layout.addWidget(self._init_control_buttons())
+
         # Add image selection
         _main_layout.addWidget(self._init_image_selection())
 
@@ -48,6 +56,43 @@ class VoxtellGUI(QWidget):
 
         # Add stretch to push everything to the top
         _main_layout.addStretch()
+
+        # Initialize session state
+        self._unlock_session()
+
+    def _init_model_selection(self) -> QGroupBox:
+        """Initializes the model selection combo box and path input."""
+        _group_box = QGroupBox("Model Selection:")
+        _layout = QVBoxLayout()
+
+        # Model dropdown
+        model_options = ["Default Model"]
+        self.model_selection = QComboBox()
+        self.model_selection.addItems(model_options)
+        self.model_selection.currentIndexChanged.connect(self.on_model_selected)
+        _layout.addWidget(self.model_selection)
+
+        # Custom path input with clear button
+        _path_layout = QHBoxLayout()
+        self.model_path_input = QLineEdit()
+        self.model_path_input.setPlaceholderText("Or paste model checkpoint path...")
+        self.model_path_input.textChanged.connect(self.on_model_selected)
+        _path_layout.addWidget(self.model_path_input)
+
+        # Clear button
+        self.clear_path_button = QPushButton("✕")
+        self.clear_path_button.setFixedWidth(30)
+        self.clear_path_button.clicked.connect(self._clear_model_path)
+        _path_layout.addWidget(self.clear_path_button)
+
+        _layout.addLayout(_path_layout)
+        _group_box.setLayout(_layout)
+        return _group_box
+
+    def _clear_model_path(self):
+        """Clear the model path input."""
+        self.model_path_input.clear()
+        self.on_model_selected()
 
     def _init_image_selection(self) -> QGroupBox:
         """Initializes the image selection combo box in a group box."""
@@ -107,6 +152,18 @@ class VoxtellGUI(QWidget):
         _group_box.setLayout(_layout)
         return _group_box
 
+    def _init_control_buttons(self) -> QGroupBox:
+        """Initializes the initialize button."""
+        _group_box = QGroupBox("")
+        _layout = QVBoxLayout()
+
+        self.init_button = QPushButton("Initialize Model")
+        self.init_button.clicked.connect(self.on_init)
+
+        _layout.addWidget(self.init_button)
+        _group_box.setLayout(_layout)
+        return _group_box
+
     def _init_submit_button(self) -> QGroupBox:
         """Initializes the submit button."""
         _group_box = QGroupBox("")
@@ -125,6 +182,26 @@ class VoxtellGUI(QWidget):
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("QLabel { color: #4CAF50; font-weight: bold; }")
         return self.status_label
+
+    def _unlock_session(self):
+        """Unlock the session, allowing model and image selection."""
+        self.init_button.setEnabled(True)
+        self.submit_button.setEnabled(False)
+        self.text_input.setEnabled(False)
+
+    def _lock_session(self):
+        """Lock the session after initialization, enabling segmentation."""
+        self.init_button.setEnabled(False)
+        self.submit_button.setEnabled(True)
+        self.text_input.setEnabled(True)
+
+    def on_model_selected(self):
+        """Handle model selection change - to be implemented in subclass."""
+        self._unlock_session()
+
+    def on_init(self):
+        """Handle initialization button click - to be implemented in subclass."""
+        pass
 
     def on_submit(self):
         """Handle submit button click - to be implemented in subclass."""
