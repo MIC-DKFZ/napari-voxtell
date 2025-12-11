@@ -124,6 +124,6 @@ Contributions are welcome! Please feel free to submit a Pull Request or open an 
 
 ## 📬 Contact
 
-For questions, issues, or collaborations, please contact:
+Special shoutout to [Benjamin Hamm](https://github.com/hammb) who created the first version of this plugin. For questions, issues, or collaborations, please contact:
 
 📧 [maximilian.rokuss@dkfz-heidelberg.de](mailto:maximilian.rokuss@dkfz-heidelberg.de) / [benjamin.hamm@dkfz-heidelberg.de](mailto:benjamin.hamm@dkfz-heidelberg.de)
