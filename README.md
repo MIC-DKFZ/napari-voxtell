@@ -1,65 +1,129 @@
 # napari-voxtell
 
-A napari plugin for text-promptable segmentation.
+[![GitHub](https://img.shields.io/badge/GitHub-VoxTell-181717?logo=github&logoColor=white)](https://github.com/MIC-DKFZ/VoxTell)&#160;
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Model-VoxTell-yellow)](https://huggingface.co/MIC-DKFZ/VoxTell)&#160;
+[![arXiv](https://img.shields.io/badge/arXiv-2511.11450-B31B1B.svg)](https://arxiv.org/abs/2511.11450)
+[![napari](https://img.shields.io/badge/napari-plugin-80d1ff)](https://github.com/MIC-DKFZ/napari-voxtell)
+
+**A napari plugin for text-promptable 3D medical image segmentation.**
 
 ## Description
 
-napari-voxtell is a simplified napari plugin that provides text-based prompting for image segmentation. 
-Instead of complex interaction tools like lasso, point, or bounding box selections, users can simply 
-type a text description of what they want to segment.
+**napari-voxtell** integrates [VoxTell](https://github.com/MIC-DKFZ/VoxTell), a 3D vision-language segmentation model, into the napari ecosystem. This plugin enables text-based prompting for volumetric medical image segmentation, offering an alternative to traditional interaction methods such as bounding boxes, point clicks, or manual brush strokes, used e.g. in our [nnInteractive plugin](https://github.com/MIC-DKFZ/napari-nninteractive).
+
+VoxTell accepts free-form text descriptions (e.g., "liver", "aortic arch", "brain tumor") to generate 3D segmentation masks. As an experimental research tool, napari-voxtell is designed to facilitate exploration and prototyping in medical image analysis workflows rather than production clinical use.
+
+**Note:** VoxTell is an ongoing research project and may produce variable results depending on anatomical region, imaging modality, and prompt specificity. Users should validate outputs carefully and not rely on this tool for clinical decision-making without expert review.
 
 ## Features
 
-- Simple text-based prompting interface
-- Image layer selection
-- Random mask generation (placeholder for AI integration)
-- Easy to extend with your own AI backend
+- 🗣️ **Text-based prompting**: Segment anatomical structures and pathologies using natural language descriptions.
+- 🧠 **Multi-modality support**: Compatible with CT, MRI, and PET volumetric data.
+- 🔌 **Seamless napari integration**: Select image layers and visualize results directly within the napari viewer.
+- ⚙️ **Flexible model loading**: Switch between model versions or load custom checkpoints for experimentation.
 
 ## Installation
 
-You can install `napari-voxtell` via source:
+### 1. Create a virtual environment
 
-```bash
-git clone https://git.dkfz.de/mic/personal/group1/personal-projects/napari-voxtell
+VoxTell supports Python 3.10+ and works with Conda, pip, or any other virtual environment. Here's an example using Conda:
+
+```
+conda create -n voxtell python=3.12
+conda activate voxtell
+```
+
+### 2. Install PyTorch
+
+> [!WARNING]
+> **Temporary Compatibility Warning**  
+> There is currently a known issue with **PyTorch 2.6.0** causing **OOM errors during inference** (related to 3D convolutions).  
+> **Until this is resolved, please use PyTorch 2.5.1 or earlier.**
+
+Install PyTorch compatible with your CUDA version. For example, for Ubuntu with a modern Nvidia GPU:
+
+```
+pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu126
+```
+
+*For other configurations (Mac, CPU, different CUDA versions), please refer to the [PyTorch Get Started](https://pytorch.org/get-started/previous-versions/) page.*
+
+### 3. Install napari-voxtell
+
+You can install the plugin directly from the repository:
+
+```
+git clone https://github.com/MIC-DKFZ/napari-voxtell
 cd napari-voxtell
 pip install -e .
 ```
 
+> **Note:** Model weights are automatically downloaded from Hugging Face on first use. This may take a few minutes depending on your internet connection.
+
+## Getting Started
+
+You can launch the plugin in three ways.
+
+**Note:** If asked which plugin to use for opening `.nii.gz` files, we recommend selecting `napari-nifti`.
+
+**Option A: Start napari and activate manually**
+1. Run `napari` in your terminal.
+2. Go to **Plugins** > **napari-voxtell**.
+
+**Option B: Start napari with the widget open**
+```
+napari -w napari-voxtell
+```
+
+**Option C: Open an image directly with the widget**
+```
+napari path/to/your/image.nii.gz -w napari-voxtell
+```
+
 ## Usage
 
-1. Open napari
-2. Load an image
-3. Open the Voxtell widget from the Plugins menu
-4. Select your image layer
-5. Enter a text prompt describing what you want to segment
-6. Click Submit or press Enter
+1. **Initialize the Model**: 
+   - Open the VoxTell widget.
+   - Select your model version from the dropdown (or paste a local custom model path).
+   - Click **Initialize**. *Wait for the "Model Loaded" status.*
+2. **Select Input**:
+   - Choose the target image layer from the dropdown menu.
+3. **Prompt**:
+   - Enter a text description of the anatomical structure or pathology you wish to segment (e.g., "right kidney", "lung lesion", "brainstem").
+4. **Segment**:
+   - Click **Submit** or press **Enter**.
+   - The resulting segmentation will appear as a new Labels layer.
 
-## Extending
+**Important:** Carefully review all segmentation outputs. Model performance varies with anatomical complexity, imaging quality, and prompt clarity. This tool is intended for research exploration, not validated clinical workflows.
 
-The current implementation generates a random mask as a placeholder. To integrate your own AI model:
+## Citation
 
-1. Modify the `on_submit` method in `widget_main.py`
-2. Replace the random mask generation with your AI model inference
-3. Pass the text prompt to your model and generate the segmentation
+If you use `napari-voxtell` in your research, please cite our paper:
 
-Example:
-
-```python
-def on_submit(self):
-    text = self.text_input.text()
-    image_layer = self.selected_image_layer
-    
-    # Your AI model here
-    # segmentation = your_model.predict(image_layer.data, text)
-    
-    # For now, just a placeholder
-    segmentation = np.random.randint(0, 2, size=image_layer.data.shape, dtype=np.uint8)
+```
+@misc{rokuss2025voxtell,
+      title={VoxTell: Free-Text Promptable Universal 3D Medical Image Segmentation}, 
+      author={Maximilian Rokuss and Moritz Langenberg and Yannick Kirchhoff and Fabian Isensee and Benjamin Hamm and Constantin Ulrich and Sebastian Regnery and Lukas Bauer and Efthimios Katsigiannopulos and Tobias Norajitra and Klaus Maier-Hein},
+      year={2025},
+      eprint={2511.11450},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2511.11450}, 
+}
 ```
 
 ## License
 
-Distributed under the terms of the Apache Software License 2.0 license.
+This repository is licensed under the **Apache-2.0 License**.
+
+**Important:** The default model checkpoints downloaded by this plugin are licensed under **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (CC-BY-NC-SA 4.0)**. Please review the [Hugging Face Model Card](https://huggingface.co/mrokuss/VoxTell) for details regarding model usage and limitations.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request or open an issue for bugs and feature requests.
+
+## 📬 Contact
+
+For questions, issues, or collaborations, please contact:
+
+📧 [maximilian.rokuss@dkfz-heidelberg.de](mailto:maximilian.rokuss@dkfz-heidelberg.de) / [benjamin.hamm@dkfz-heidelberg.de](mailto:benjamin.hamm@dkfz-heidelberg.de)

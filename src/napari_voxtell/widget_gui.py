@@ -66,7 +66,7 @@ class VoxtellGUI(QWidget):
         _layout = QVBoxLayout()
 
         # Model dropdown
-        model_options = ["Default Model"]
+        model_options = ["voxtell_v1.1", "voxtell_v1.0"]
         self.model_selection = QComboBox()
         self.model_selection.addItems(model_options)
         self.model_selection.currentIndexChanged.connect(self.on_model_selected)

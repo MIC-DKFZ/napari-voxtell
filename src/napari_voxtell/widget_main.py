@@ -1,14 +1,14 @@
-import time
+import os
+import torch
 from typing import Optional
 import SimpleITK as sitk
-import nibabel as nib
 
 import numpy as np
 from napari.viewer import Viewer
 from qtpy.QtCore import QThread, QTimer, Signal
 from qtpy.QtWidgets import QWidget
 from napari.utils.notifications import show_info, show_warning, show_error
-import torch
+from huggingface_hub import snapshot_download
 
 from napari_voxtell.widget_gui import VoxtellGUI
 
@@ -80,9 +80,6 @@ class VoxtellWidget(VoxtellGUI):
         self.spinner_timer.timeout.connect(self._update_spinner)
         self.spinner_index = 0
         self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        
-        # Default model path
-        self.default_model_path = "path"
 
     def _update_spinner(self):
         """Update the spinner animation."""
@@ -117,11 +114,25 @@ class VoxtellWidget(VoxtellGUI):
     def on_init(self):
         """Initialize the VoxTell predictor with the selected model."""
 
-        # Get model path from custom input or use default
+        # Get model path from custom input or use selected model
         model_path = self.model_path_input.text().strip()
         if not model_path:
-            model_path = self.default_model_path
-            show_info(f"Using default model path")
+            # Use the selected model from dropdown
+            selected_model = self.model_selection.currentText()
+            
+            repo_id = "mrokuss/VoxTell"
+            dowload_path = snapshot_download(
+                repo_id=repo_id, allow_patterns=[f"{selected_model}/*", "*.json"]
+            )
+
+            model_path = os.path.join(dowload_path, selected_model)
+            if os.path.exists(model_path):
+                show_info(f"Using {selected_model}")
+            else:
+                show_error(f"Could not fetch {selected_model}")
+                return
+        else:
+            show_info(f"Using custom model path: {model_path}")
 
         # Start initialization animation
         self._start_processing("Initializing model...")

@@ -5,7 +5,8 @@ description = "Voxtell - Text-promptable segmentation plugin for Napari"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-  { name = "Your Name"},
+  { name = "Benjamin Hamm", email = "benjamin.hamm @dkfz-heidelberg.de"},
+  { name = "Maximilian Rokuss", email = "maximilian.rokuss@dkfz-heidelberg.de"}
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
