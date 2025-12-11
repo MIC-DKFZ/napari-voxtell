@@ -22,6 +22,19 @@ VoxTell accepts free-form text descriptions (e.g., "liver", "aortic arch", "brai
 - 🔌 **Seamless napari integration**: Select image layers and visualize results directly within the napari viewer.
 - ⚙️ **Flexible model loading**: Switch between model versions or load custom checkpoints for experimentation.
 
+## Important: Image Orientation and Spacing
+
+> [!WARNING]
+> **Image Orientation (Critical)**  
+> Images **must be in RAS orientation** to ensure correct anatomical localization and avoid left-right confusion. VoxTell was trained on images automatically reoriented to RAS using [this nibabel reader](https://github.com/MIC-DKFZ/nnUNet/blob/86606c53ef9f556d6f024a304b52a48378453641/nnunetv2/imageio/nibabel_reader_writer.py#L101). While napari-voxtell attempts to handle this automatically, orientation mismatches can cause segmentation errors.
+> 
+> **How to detect orientation issues:** If a simple prompt like "liver" fails or partially segments the spleen instead, the image orientation is likely incorrect. VoxTell does **not** perform mirroring or orientation correction internally.
+
+> [!NOTE]
+> **Image Spacing**  
+> VoxTell does **not resample** images to a standardized spacing during inference. Uncommon voxel spacings (e.g., very high-resolution brain MRI with ~0.5mm isotropic resolution) may lead to degraded performance. If you observe poor results on high- or low-resolution data, consider resampling to a more typical clinical spacing (e.g., 1.5×1.5×1.5 mm³) before processing.
+
+
 ## Installation
 
 ### 1. Create a virtual environment
@@ -37,8 +50,8 @@ conda activate voxtell
 
 > [!WARNING]
 > **Temporary Compatibility Warning**  
-> There is currently a known issue with **PyTorch 2.6.0** causing **OOM errors during inference** (related to 3D convolutions).  
-> **Until this is resolved, please use PyTorch 2.5.1 or earlier.**
+> There is a known issue with **PyTorch 2.9.0** causing **OOM errors during inference** in `nnInteractive` (related to 3D convolutions — see the PyTorch issue [here](https://github.com/pytorch/pytorch/issues/166122)).  
+> **Until this is resolved, please use PyTorch 2.8.0 or earlier.**
 
 Install PyTorch compatible with your CUDA version. For example, for Ubuntu with a modern Nvidia GPU:
 
