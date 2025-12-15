@@ -119,6 +119,12 @@ class VoxtellWidget(VoxtellGUI):
         if not model_path:
             # Use the selected model from dropdown
             selected_model = self.model_selection.currentText()
+
+            if selected_model not in ["voxtell_v1.0", "voxtell_v1.1"]:
+                show_error(f"Unknown model selected: {selected_model}")
+                return
+            if selected_model == "voxtell_v1.0":
+                show_warning("VoxTell v1.0 is deprecated. Please use v1.1 for better performance and features.")
             
             repo_id = "mrokuss/VoxTell"
             dowload_path = snapshot_download(
@@ -126,9 +132,7 @@ class VoxtellWidget(VoxtellGUI):
             )
 
             model_path = os.path.join(dowload_path, selected_model)
-            if os.path.exists(model_path):
-                show_info(f"Using {selected_model}")
-            else:
+            if not os.path.exists(model_path):
                 show_error(f"Could not fetch {selected_model}")
                 return
         else:
@@ -139,7 +143,7 @@ class VoxtellWidget(VoxtellGUI):
 
         # Create device
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        show_info(f"Initializing model on {device}...")
+        print(f"Initializing model on {device}...")
 
         # Create and start the initialization thread
         self.initialization_thread = InitializationThread(model_path, device)

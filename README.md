@@ -24,15 +24,9 @@ VoxTell accepts free-form text descriptions (e.g., "liver", "aortic arch", "brai
 
 ## Important: Image Orientation and Spacing
 
-> [!WARNING]
-> **Image Orientation (Critical)**  
-> Images **must be in RAS orientation** to ensure correct anatomical localization and avoid left-right confusion. VoxTell was trained on images automatically reoriented to RAS using [this nibabel reader](https://github.com/MIC-DKFZ/nnUNet/blob/86606c53ef9f556d6f024a304b52a48378453641/nnunetv2/imageio/nibabel_reader_writer.py#L101). While napari-voxtell attempts to handle this automatically, orientation mismatches can cause segmentation errors.
-> 
-> **How to detect orientation issues:** If a simple prompt like "liver" fails or partially segments the spleen instead, the image orientation is likely incorrect. VoxTell does **not** perform mirroring or orientation correction internally.
+- ⚠️ **Image Orientation (Critical)**: For correct anatomical localization (e.g., distinguishing left from right), images **must be in RAS orientation**. VoxTell was trained on data reoriented using [this specific reader](https://github.com/MIC-DKFZ/nnUNet/blob/86606c53ef9f556d6f024a304b52a48378453641/nnunetv2/imageio/nibabel_reader_writer.py#L101). While this plugin attempts to handle reorientation under the hood, mismatches can be a source of error. An easy way to test for this is if a simple prompt like "liver" fails and segments e.g. parts of the spleen instead.
 
-> [!NOTE]
-> **Image Spacing**  
-> VoxTell does **not resample** images to a standardized spacing during inference. Uncommon voxel spacings (e.g., very high-resolution brain MRI with ~0.5mm isotropic resolution) may lead to degraded performance. If you observe poor results on high- or low-resolution data, consider resampling to a more typical clinical spacing (e.g., 1.5×1.5×1.5 mm³) before processing.
+- **Image Spacing**: The model does not resample images to a standardized spacing for faster inference. Performance may degrade on images with very uncommon voxel spacings (e.g., super high-resolution brain MRI). In such cases, consider resampling the image to a more typical clinical spacing (e.g., 1.5×1.5×1.5 mm³) before segmentation.
 
 
 ## Installation
@@ -50,7 +44,7 @@ conda activate voxtell
 
 > [!WARNING]
 > **Temporary Compatibility Warning**  
-> There is a known issue with **PyTorch 2.9.0** causing **OOM errors during inference** in `nnInteractive` (related to 3D convolutions — see the PyTorch issue [here](https://github.com/pytorch/pytorch/issues/166122)).  
+> There is a known issue with **PyTorch 2.9.0** causing **OOM errors during inference** (related to 3D convolutions — see the PyTorch issue [here](https://github.com/pytorch/pytorch/issues/166122)).  
 > **Until this is resolved, please use PyTorch 2.8.0 or earlier.**
 
 Install PyTorch compatible with your CUDA version. For example, for Ubuntu with a modern Nvidia GPU:
@@ -104,10 +98,16 @@ napari path/to/your/image.nii.gz -w napari-voxtell
 3. **Prompt**:
    - Enter a text description of the anatomical structure or pathology you wish to segment (e.g., "right kidney", "lung lesion", "brainstem").
 4. **Segment**:
-   - Click **Submit** or press **Enter**.
+   - Click **Submit**.
    - The resulting segmentation will appear as a new Labels layer.
 
 **Important:** Carefully review all segmentation outputs. Model performance varies with anatomical complexity, imaging quality, and prompt clarity. This tool is intended for research exploration, not validated clinical workflows.
+
+
+<p align="center">
+    <img src="imgs/gui.png" alt="napari-voxtell GUI">
+</p>
+
 
 ## Citation
 
@@ -140,3 +140,11 @@ Contributions are welcome! Please feel free to submit a Pull Request or open an 
 Special shoutout to [Benjamin Hamm](https://github.com/hammb) who created the first version of this plugin. For questions, issues, or collaborations, please contact:
 
 📧 [maximilian.rokuss@dkfz-heidelberg.de](mailto:maximilian.rokuss@dkfz-heidelberg.de) / [benjamin.hamm@dkfz-heidelberg.de](mailto:benjamin.hamm@dkfz-heidelberg.de)
+
+______________________________________________________________________
+
+## Acknowledgments
+
+<p align="left">
+  <img src="imgs/Logos/DKFZ_Logo.png" width="500">
+</p>

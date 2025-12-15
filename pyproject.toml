@@ -29,6 +29,7 @@ dependencies = [
     "qtpy",
     "napari[all]",
     "napari-nifti",
+    "voxtell"
 ]
 
 [project.optional-dependencies]
