@@ -12,7 +12,7 @@ from huggingface_hub import snapshot_download
 
 from napari_voxtell.widget_gui import VoxtellGUI
 
-from nnunetv2.inference.VoxTellPredictor import VoxTellPredictor
+from voxtell.inference.predictor import VoxTellPredictor
 
 
 class InitializationThread(QThread):
