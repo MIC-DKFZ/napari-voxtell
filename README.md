@@ -74,8 +74,10 @@ You can launch the plugin in three ways.
 **Note:** If asked which plugin to use for opening `.nii.gz` files, we recommend selecting `napari-nifti`.
 
 **Option A: Start napari and activate manually**
-1. Run `napari` in your terminal.
-2. Go to **Plugins** > **napari-voxtell**.
+```
+napari
+```
+Then go to **Plugins** > **napari-voxtell**.
 
 **Option B: Start napari with the widget open**
 ```
@@ -92,21 +94,21 @@ napari path/to/your/image.nii.gz -w napari-voxtell
 1. **Initialize the Model**: 
    - Open the VoxTell widget.
    - Select your model version from the dropdown (or paste a local custom model path).
-   - Click **Initialize**. *Wait for the "Model Loaded" status.*
+   - Click **Initialize**. This downloads model weights on first use and takes some time while the model loads.
 2. **Select Input**:
    - Choose the target image layer from the dropdown menu.
 3. **Prompt**:
-   - Enter a text description of the anatomical structure or pathology you wish to segment (e.g., "right kidney", "lung lesion", "brainstem").
+   - Enter a text description of the anatomical structure or pathology of interest (e.g., "right kidney", "lung lesion", "brainstem").
 4. **Segment**:
    - Click **Submit**.
    - The resulting segmentation will appear as a new Labels layer.
-
-**Important:** Carefully review all segmentation outputs. Model performance varies with anatomical complexity, imaging quality, and prompt clarity. This tool is intended for research exploration, not validated clinical workflows.
 
 
 <p align="center">
     <img src="imgs/gui.png" alt="napari-voxtell GUI">
 </p>
+
+Please carefully review all segmentation outputs. Model performance varies with anatomical complexity, imaging quality, spacing, and prompt clarity. This tool is intended for research exploration, not validated clinical workflows.
 
 
 ## Citation
