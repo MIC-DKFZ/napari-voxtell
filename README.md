@@ -61,7 +61,13 @@ pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorc
 
 ### 3. Install napari-voxtell
 
-You can install the plugin directly from the repository:
+Install via pip (you can also use [uv](https://docs.astral.sh/uv/)):
+
+```bash
+pip install napari-voxtell
+```
+
+or install the plugin directly from the repository:
 
 ```
 git clone https://github.com/MIC-DKFZ/napari-voxtell
