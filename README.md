@@ -1,14 +1,15 @@
-# VoxTell-Napari: A Napari Plugin For Text-Promptable 3D Medical Image Segmentation
+# Napari-VoxTell: A Napari Plugin For Text-Promptable 3D Medical Image Segmentation
+
+<div align="center">
 
 [![arXiv](https://img.shields.io/badge/arXiv-2511.11450-B31B1B.svg)](https://arxiv.org/abs/2511.11450)&#160;
 [![GitHub](https://img.shields.io/badge/GitHub-VoxTell-181717?logo=github&logoColor=white)](https://github.com/MIC-DKFZ/VoxTell)&#160;
-[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Model-VoxTell-yellow)](https://huggingface.co/MIC-DKFZ/VoxTell)&#160;
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Model-VoxTell-yellow)](https://huggingface.co/mrokuss/VoxTell)&#160;
 [![napari](https://img.shields.io/badge/napari-plugin-80d1ff)](https://github.com/MIC-DKFZ/napari-voxtell)
 
-<img src="imgs/Logos/VoxTellPluginLogo.png" alt="VoxTell Logo"/>
+</div>
 
-> [!NOTE]  
-> The model will soon be available on Hugging Face! 🤗  Stay tuned for the official release.
+<img src="imgs/Logos/VoxTellPluginLogo.png" alt="VoxTell Logo"/>
 
 ## Description
 
