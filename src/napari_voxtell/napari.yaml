@@ -1,5 +1,5 @@
 name: napari-voxtell
-display_name: Voxtell
+display_name: VoxTell
 # use 'hidden' to remove plugin from napari hub search results
 visibility: public
 # see https://napari.org/stable/plugins/manifest.html for valid categories
@@ -8,7 +8,14 @@ contributions:
   commands:
     - id: napari-voxtell.VoxtellWidget
       python_name: napari_voxtell:VoxtellWidget
-      title: Voxtell
+      title: VoxTell
+    - id: napari-voxtell.get_reader
+      python_name: napari_voxtell._reader:napari_get_reader
+      title: Open NIfTI in VoxTell (RAS) orientation
+  readers:
+    - command: napari-voxtell.get_reader
+      filename_patterns: ["*.nii", "*.nii.gz"]
+      accepts_directories: false
   widgets:
     - command: napari-voxtell.VoxtellWidget
-      display_name: Voxtell
+      display_name: VoxTell

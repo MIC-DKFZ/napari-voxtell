@@ -6,6 +6,7 @@
 [![GitHub](https://img.shields.io/badge/GitHub-VoxTell-181717?logo=github&logoColor=white)](https://github.com/MIC-DKFZ/VoxTell)&#160;
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Model-VoxTell-yellow)](https://huggingface.co/mrokuss/VoxTell)&#160;
 [![web tool](https://img.shields.io/badge/web-tool-4CAF50)](https://github.com/gomesgustavoo/voxtell-web-plugin)&#160;
+[![OHIF integration](https://img.shields.io/badge/OHIF-integration-101332)](https://github.com/CCI-Bonn/OHIF-AI)&#160;
 [![3D Slicer](https://badgen.net/badge/3D%20Slicer/plugin/1f65b0ff?icon=https://raw.githubusercontent.com/Slicer/slicer.org/bc48de2b885e9bb4a725a24ab44b86273014f0ea/assets/img/3D-Slicer-Mark.svg)](https://github.com/lassoan/SlicerVoxTell)
 [![napari](https://badgen.net/badge/napari/plugin/80d1ff?icon=https://raw.githubusercontent.com/napari/napari/8b74cdfb205338a20a2e63dcbba048007ecd2309/src/napari/resources/logos/gradient-plain-light.svg)](https://github.com/MIC-DKFZ/napari-voxtell)&#160;
 
@@ -30,7 +31,7 @@ VoxTell accepts free-form text descriptions (e.g., "liver", "aortic arch", "brai
 
 ## Important: Image Orientation and Spacing
 
-- ⚠️ **Image Orientation (Critical)**: For correct anatomical localization (e.g., distinguishing left from right), images **must be in RAS orientation**. VoxTell was trained on data reoriented using [this specific reader](https://github.com/MIC-DKFZ/nnUNet/blob/86606c53ef9f556d6f024a304b52a48378453641/nnunetv2/imageio/nibabel_reader_writer.py#L101). While this plugin attempts to handle reorientation under the hood, mismatches can be a source of error. An easy way to test for this is if a simple prompt like "liver" fails and segments e.g. parts of the spleen instead.
+- ⚠️ **Image Orientation (Critical)**: For correct anatomical localization (e.g., distinguishing left from right), images **must be in RAS orientation**. VoxTell was trained on data reoriented using [this specific reader](https://github.com/MIC-DKFZ/nnUNet/blob/86606c53ef9f556d6f024a304b52a48378453641/nnunetv2/imageio/nibabel_reader_writer.py#L101). To make this robust, this plugin ships its own **VoxTell reader** that opens `.nii.gz` files through exactly that reader (see [Getting Started](#getting-started)), and it reorients results back to the image's original orientation on save. A quick way to spot a mismatch is if a simple prompt like "liver" fails and segments e.g. parts of the spleen instead.
 
 - **Image Spacing**: The model does not resample images to a standardized spacing for faster inference. Performance may degrade on images with very uncommon voxel spacings (e.g., super high-resolution brain MRI). In such cases, consider resampling the image to a more typical clinical spacing (e.g., 1.5×1.5×1.5 mm³) before segmentation.
 
@@ -63,16 +64,22 @@ pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorc
 
 ### 3. Install napari-voxtell
 
-Install via pip (you can also use [uv](https://docs.astral.sh/uv/)):
+During the current community **test phase**, install the latest version directly from git:
 
 ```bash
-pip install napari-voxtell
+pip install "git+https://git.dkfz.de/mic/personal/group1/personal-projects/napari-voxtell.git@feature/ux-orientation-presets"
 ```
 
-or install the plugin directly from the repository:
+> [!NOTE]
+> The PyPI release (`pip install napari-voxtell`) will follow after the test phase. The plugin
+> depends on `voxtell` from PyPI; the live progress bar and mid-run Cancel button additionally
+> require the upcoming `voxtell` release and light up automatically once it is available — until
+> then the plugin runs normally and reports results when finished.
+
+For development, clone and install in editable mode (you can also use [uv](https://docs.astral.sh/uv/)):
 
 ```
-git clone https://github.com/MIC-DKFZ/napari-voxtell
+git clone https://git.dkfz.de/mic/personal/group1/personal-projects/napari-voxtell.git
 cd napari-voxtell
 pip install -e .
 ```
@@ -83,7 +90,11 @@ pip install -e .
 
 You can launch the plugin in three ways.
 
-**Note:** If asked which plugin to use for opening `.nii.gz` files, we recommend selecting `napari-nifti`.
+> [!IMPORTANT]
+> When opening a `.nii.gz` file, choose the **VoxTell** reader (not `napari-nifti`). The VoxTell
+> reader reorients the volume to **RAS** using the same `NibabelIOWithReorient` reader the model was
+> trained with, which is required for correct left/right and organ localization. Volumes opened with
+> other readers may be mis-oriented and produce wrong-side / wrong-organ masks.
 
 **Option A: Start napari and activate manually**
 ```
@@ -108,12 +119,17 @@ napari path/to/your/image.nii.gz -w napari-voxtell
    - Select your model version from the dropdown (or paste a local custom model path).
    - Click **Initialize**. This downloads model weights on first use and takes some time while the model loads.
 2. **Select Input**:
-   - Choose the target image layer from the dropdown menu.
+   - Choose the target image layer from the dropdown menu (opened with the **VoxTell** reader — see above).
 3. **Prompt**:
-   - Enter a text description of the anatomical structure or pathology of interest (e.g., "right kidney", "lung lesion", "brainstem").
-4. **Segment**:
-   - Click **Submit**.
-   - The resulting segmentation will appear as a new Labels layer.
+   - Type a text description of each structure of interest (e.g., "right kidney", "lung lesion", "brainstem"), **one prompt per line**.
+   - Or pick a group from the **preset** dropdown and click **Add** to append it.
+4. **Choose output mode** (optional):
+   - Leave **Separate layer per prompt** off for one combined multi-label layer, or turn it on for one binary layer per prompt.
+   - Optionally enable **Keep largest only** and/or set an **Output name**.
+5. **Segment**:
+   - Click **Submit**. Results appear as new Labels layer(s); the in-widget colour legend maps each colour to its prompt.
+6. **Save** (optional):
+   - Use **Save segmentations as NIfTI** to merge all VoxTell layers of the selected image into one labelmap (label values follow prompt line order) in the image's original orientation, alongside a JSON legend.
 
 
 <p align="center">
@@ -127,15 +143,13 @@ Please carefully review all segmentation outputs. Model performance varies with 
 
 If you use `napari-voxtell` in your research, please cite our paper:
 
-```
-@misc{rokuss2025voxtell,
-      title={VoxTell: Free-Text Promptable Universal 3D Medical Image Segmentation}, 
-      author={Maximilian Rokuss and Moritz Langenberg and Yannick Kirchhoff and Fabian Isensee and Benjamin Hamm and Constantin Ulrich and Sebastian Regnery and Lukas Bauer and Efthimios Katsigiannopulos and Tobias Norajitra and Klaus Maier-Hein},
-      year={2025},
-      eprint={2511.11450},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2511.11450}, 
+```bibtex
+@inproceedings{rokuss2026voxtell,
+      title={Voxtell: Free-text promptable universal 3d medical image segmentation},
+      author={Rokuss, Maximilian and Langenberg, Moritz and Kirchhoff, Yannick and Isensee, Fabian and Hamm, Benjamin and Ulrich, Constantin and Regnery, Sebastian and Bauer, Lukas and Katsigiannopulos, Efthimios and Norajitra, Tobias and Maier-Hein, Klaus},
+      booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+      pages={37538--37557},
+      year={2026}
 }
 ```
 
