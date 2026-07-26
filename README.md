@@ -139,6 +139,28 @@ napari path/to/your/image.nii.gz -w napari-voxtell
 Please carefully review all segmentation outputs. Model performance varies with anatomical complexity, imaging quality, spacing, and prompt clarity. This tool is intended for research exploration, not validated clinical workflows.
 
 
+## Remote inference (run the GUI on a laptop, the model on a workstation)
+
+The plugin can run the napari GUI locally while inference runs on a remote GPU machine
+(workstation or cluster). Loading, display and saving stay identical to local mode — only
+the inference is offloaded over HTTP.
+
+1. **On the GPU machine**, install the server and run it (see the VoxTell repo):
+   ```bash
+   pip install "voxtell[server]"
+   voxtell-server --host 127.0.0.1 --port 1527
+   ```
+2. **From your laptop**, forward the port over SSH (the server binds to localhost by default):
+   ```bash
+   ssh -N -L 1527:127.0.0.1:1527 your-workstation
+   ```
+3. **In the widget**, set **Inference Location → Remote server**, enter `http://127.0.0.1:1527`,
+   click **Connect**, then open an image and **Submit** as usual. The image is uploaded to the
+   server on the first Submit; the progress bar and **Cancel** work exactly as in local mode.
+
+For a trusted LAN you can instead bind the server to `0.0.0.0` and set an API key
+(`voxtell-server --host 0.0.0.0 --api-key ...`, then paste the key into the widget).
+
 ## Citation
 
 If you use `napari-voxtell` in your research, please cite our paper:
@@ -172,6 +194,10 @@ Special shoutout to [Benjamin Hamm](https://github.com/hammb) who created the fi
 ______________________________________________________________________
 
 ## Acknowledgments
+
+The remote (client/server) inference mode is inspired by MIC-DKFZ's
+[nnInteractive](https://github.com/MIC-DKFZ/nnInteractive) and
+[napari-nninteractive](https://github.com/MIC-DKFZ/napari-nninteractive) (Apache-2.0).
 
 <p align="left">
   <img src="imgs/Logos/DKFZ_Logo.png" width="500">

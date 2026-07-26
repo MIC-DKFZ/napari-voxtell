@@ -6,16 +6,39 @@ import os
 from typing import Optional
 
 import numpy as np
-import torch
-from huggingface_hub import snapshot_download
 from napari.layers import Labels
 from napari.utils.colormaps import DirectLabelColormap
 from napari.utils.notifications import show_error, show_info, show_warning
 from napari.viewer import Viewer
-from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
-from qtpy.QtCore import QThread, QTimer, Signal
+from qtpy.QtCore import QSettings, QThread, QTimer, Signal
 from qtpy.QtWidgets import QFileDialog, QWidget
-from voxtell.inference.predictor import VoxTellPredictor
+
+from napari_voxtell.remote import VoxTellRemoteClient
+
+# Heavy, local-inference-only dependencies. A thin (remote-only) laptop install may not
+# have them, so guard the imports: the plugin still runs, just in remote mode.
+try:
+    import torch
+except ImportError:  # pragma: no cover
+    torch = None
+
+try:
+    from huggingface_hub import snapshot_download
+except ImportError:  # pragma: no cover
+    snapshot_download = None
+
+try:
+    from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
+except ImportError:  # pragma: no cover
+    NibabelIOWithReorient = None
+
+try:
+    from voxtell.inference.predictor import VoxTellPredictor
+
+    _HAS_VOXTELL = True
+except ImportError:  # pragma: no cover
+    VoxTellPredictor = None
+    _HAS_VOXTELL = False
 
 try:  # older voxtell releases lack cooperative cancellation
     from voxtell.inference.predictor import InferenceCancelled
@@ -29,7 +52,8 @@ from napari_voxtell.widget_gui import VoxtellGUI
 
 # Whether the installed voxtell supports the progress/cancel hook.
 _PREDICT_SUPPORTS_PROGRESS = (
-    "progress_callback" in inspect.signature(VoxTellPredictor.predict_single_image).parameters
+    _HAS_VOXTELL
+    and "progress_callback" in inspect.signature(VoxTellPredictor.predict_single_image).parameters
 )
 
 # Qualitative palette cycled across generated segmentation layers so each prompt
@@ -201,6 +225,109 @@ class ProcessingThread(QThread):
             self._free_gpu()
 
 
+class ConnectionThread(QThread):
+    """Connect to a remote voxtell-server off the UI thread."""
+
+    finished = Signal(object)  # emits (client, capabilities dict)
+    error = Signal(str)
+
+    def __init__(self, base_url, api_key):
+        super().__init__()
+        self.base_url = base_url
+        self.api_key = api_key
+
+    def run(self):
+        try:
+            client = VoxTellRemoteClient(self.base_url, self.api_key or None)
+            client.healthz()
+            caps = client.capabilities()
+            self.finished.emit((client, caps))
+        except Exception as e:  # noqa: BLE001 - surface any connection failure to the UI
+            self.error.emit(str(e))
+
+
+class UploadThread(QThread):
+    """Upload a NIfTI file to the server (reorients + caches it there)."""
+
+    finished = Signal(object)  # emits (name, array_or_None, spacing, image_id, shape)
+    error = Signal(str)
+
+    def __init__(self, client, path, include_image=True):
+        super().__init__()
+        self.client = client
+        self.path = path
+        # False when the GUI already loaded the image locally and only needs the id.
+        self.include_image = include_image
+
+    def run(self):
+        try:
+            with open(self.path, "rb") as handle:
+                data = handle.read()
+            image_id, array, spacing, shape = self.client.upload_image(
+                data, include_image=self.include_image
+            )
+            name = os.path.basename(self.path)
+            for suffix in (".nii.gz", ".nii"):
+                if name.lower().endswith(suffix):
+                    name = name[: -len(suffix)]
+                    break
+            self.finished.emit((name, array, spacing, image_id, shape))
+        except Exception as e:  # noqa: BLE001 - surface any upload failure to the UI
+            self.error.emit(str(e))
+
+
+class RemoteProcessingThread(QThread):
+    """Drive a remote segmentation job: start it, stream progress, fetch the masks.
+
+    Emits the SAME signals as the local ``ProcessingThread`` so the widget's existing
+    progress/cancel/finished handlers work unchanged.
+    """
+
+    finished = Signal(np.ndarray)
+    error = Signal(str)
+    progress = Signal(int, int)  # (patches done, total patches)
+    cancelled = Signal()
+    oom_fallback = Signal(str)
+
+    def __init__(self, client, image_id, prompts, keep_largest=False):
+        super().__init__()
+        self.client = client
+        self.image_id = image_id
+        self.prompts = prompts
+        self.keep_largest = keep_largest
+        self.job_id = None
+        self._cancel = False
+
+    def cancel(self):
+        """Request cancellation; forwarded to the server once the job has started."""
+        self._cancel = True
+        if self.job_id is not None:
+            with contextlib.suppress(Exception):
+                self.client.cancel(self.job_id)
+
+    def run(self):
+        try:
+            self.job_id = self.client.start_job(self.image_id, self.prompts, self.keep_largest)
+            if self._cancel:  # cancelled during the (brief) start call
+                self.client.cancel(self.job_id)
+            for event in self.client.stream_events(self.job_id):
+                if event.get("event") == "oom_fallback":
+                    self.oom_fallback.emit(event.get("message", ""))
+                elif "status" in event:
+                    status = event["status"]
+                    if status == "done":
+                        self.finished.emit(self.client.get_result(self.job_id))
+                    elif status == "cancelled":
+                        self.cancelled.emit()
+                    else:
+                        self.error.emit(event.get("message", "Inference failed."))
+                    return
+                elif "done" in event:
+                    self.progress.emit(int(event["done"]), int(event["total"]))
+        except Exception as e:  # noqa: BLE001 - surface any streaming failure to the UI
+            self.error.emit(str(e))
+
+
 class VoxtellWidget(VoxtellGUI):
     """
     A simplified widget for text-promptable segmentation in Napari.
@@ -215,6 +342,11 @@ class VoxtellWidget(VoxtellGUI):
         self.predictor = None  # Will be initialized when user clicks "Initialize Model"
         self.processing_thread = None
         self.initialization_thread = None
+        # Remote-mode state (set when connected to a voxtell-server).
+        self.remote_client = None
+        self.connection_thread = None
+        self.upload_thread = None
+        self._pending_remote = None  # (layer, prompts, separate, keep_largest) during upload
         self.spinner_timer = QTimer()
         self.spinner_timer.timeout.connect(self._update_spinner)
         self.spinner_index = 0
@@ -223,6 +355,32 @@ class VoxtellWidget(VoxtellGUI):
         # Keep the legend in sync with the selected segmentation layer (and its colours).
         self._legend_layer = None
         self._viewer.layers.selection.events.active.connect(self._on_active_layer_changed)
+
+        # Persisted connection settings: server URL + mode. The API key is deliberately
+        # never persisted (matching nnInteractive) - it falls back to being retyped.
+        self._settings = QSettings("MIC-DKFZ", "napari-voxtell")
+        self.server_url_input.setText(self._settings.value("server_url", "") or "")
+        self.server_url_input.textChanged.connect(self._save_settings)
+        if self._settings.value("mode", "local") == "remote":
+            self.mode_selection.setCurrentIndex(1)  # fires on_mode_changed
+        self._set_mode_ui(self._is_remote())
+
+    def _save_settings(self, *args):
+        """Persist the current mode and server URL (never the API key)."""
+        self._settings.setValue("mode", "remote" if self._is_remote() else "local")
+        self._settings.setValue("server_url", self.server_url_input.text().strip())
+
+    def on_mode_changed(self):
+        """Switch between local and remote inference, resetting any live connection."""
+        self._set_mode_ui(self._is_remote())
+        self._save_settings()
+        # Switching modes invalidates any loaded model / open connection.
+        self.predictor = None
+        if self.remote_client is not None:
+            with contextlib.suppress(Exception):
+                self.remote_client.close()
+            self.remote_client = None
+        self._unlock_session()
 
     def _on_active_layer_changed(self, event=None):
         """Show the legend of the active VoxTell layer; track its colour changes."""
@@ -301,7 +459,57 @@ class VoxtellWidget(VoxtellGUI):
             self._unlock_session()
 
     def on_init(self):
+        """Initialize local model or connect to the remote server, per the mode toggle."""
+        if self._is_remote():
+            self._connect_remote()
+        else:
+            self._init_local()
+
+    def _connect_remote(self):
+        """Open (and health-check) a connection to a remote voxtell-server."""
+        url = self.server_url_input.text().strip()
+        if not url:
+            show_warning("Enter the server URL (e.g. http://127.0.0.1:1527).")
+            return
+        self._save_settings()
+        self._start_processing("Connecting to server...")
+        self.connection_thread = ConnectionThread(url, self.api_key_input.text().strip())
+        self.connection_thread.finished.connect(self._on_connected)
+        self.connection_thread.error.connect(self._on_connection_error)
+        self.connection_thread.start()
+
+    def _on_connected(self, result):
+        """Handle a successful server connection."""
+        client, caps = result
+        self.remote_client = client
+        self._stop_processing("✓ Connected!", restore_submit=True)
+        self._lock_session()
+        model = caps.get("model", "server")
+        show_info(
+            f"Connected to VoxTell server (model: {model}). "
+            "Open a .nii/.nii.gz image and Submit to segment it on the server."
+        )
+
+    def _on_connection_error(self, message):
+        """Handle a failed server connection."""
+        self._stop_processing("✗ Connection failed!", restore_submit=False)
+        show_error(f"Could not connect to server: {message}")
+
+    def _on_upload_error(self, message):
+        """Handle a failed image upload (during the lazy upload-then-segment on Submit)."""
+        self._stop_processing("✗ Upload failed!", restore_submit=True)
+        self._pending_remote = None
+        show_error(f"Failed to upload image: {message}")
+
+    def _init_local(self):
         """Initialize the VoxTell predictor with the selected model."""
+
+        if not _HAS_VOXTELL or torch is None:
+            show_error(
+                "Local inference requires the 'voxtell' package. Install it with "
+                "'pip install napari-voxtell[local]', or switch to Remote server mode."
+            )
+            return
 
         # Get model path from custom input or use selected model
         model_path = self.model_path_input.text().strip()
@@ -358,6 +566,95 @@ class VoxtellWidget(VoxtellGUI):
         show_error(f"Failed to initialize model: {error_message}")
 
     def on_submit(self):
+        """Run segmentation locally or on the server, per the mode toggle."""
+        if self._is_remote():
+            self._submit_remote()
+        else:
+            self._submit_local()
+
+    def _submit_remote(self):
+        """Segment the selected image on the server, uploading its file first if needed."""
+        if self.remote_client is None:
+            show_warning("Connect to the server first.")
+            return
+
+        prompts = [
+            line.strip() for line in self.text_input.toPlainText().splitlines() if line.strip()
+        ]
+        if not prompts:
+            return
+
+        image_layer = self.selected_image_layer
+        if image_layer is None:
+            show_warning("Please select an image layer first")
+            return
+
+        separate = self.separate_checkbox.isChecked()
+        keep_largest = self.largest_cc_checkbox.isChecked()
+
+        # Already uploaded (drag-and-drop after a first submit, or via the button)?
+        image_id = image_layer.metadata.get("voxtell_image_id")
+        if image_id is not None:
+            show_info(f"Segmenting {len(prompts)} prompt(s): {', '.join(prompts)}")
+            self._start_remote_job(image_id, image_layer, prompts, separate, keep_largest)
+            return
+
+        # First submit for an image loaded by the VoxTell reader: upload its original
+        # file (off the UI thread), then segment. The server reorients the same file
+        # with the same reader, so its masks land in the displayed image's space.
+        source_path = image_layer.metadata.get("voxtell_source_path")
+        if not source_path or not image_layer.metadata.get("voxtell_reoriented"):
+            show_warning(
+                "Open this image with the VoxTell reader (drag-and-drop a .nii/.nii.gz), "
+                "or use 'Open image on server...', before segmenting."
+            )
+            return
+
+        show_info(f"Segmenting {len(prompts)} prompt(s): {', '.join(prompts)}")
+        self._pending_remote = (image_layer, prompts, separate, keep_largest)
+        self._start_processing("Uploading image to server...")
+        self.upload_thread = UploadThread(self.remote_client, source_path, include_image=False)
+        self.upload_thread.finished.connect(self._on_upload_then_segment)
+        self.upload_thread.error.connect(self._on_upload_error)
+        self.upload_thread.start()
+
+    def _on_upload_then_segment(self, result):
+        """After a lazy upload, cache the image_id on the layer and run the job."""
+        _name, _array, _spacing, image_id, shape = result
+        image_layer, prompts, separate, keep_largest = self._pending_remote
+        self._pending_remote = None
+        image_layer.metadata["voxtell_image_id"] = image_id
+
+        # Both sides reorient the same file with the same reader, so the shapes must
+        # match; a mismatch means the reorientations diverged - abort to avoid overlaying
+        # misaligned masks rather than silently producing a wrong result.
+        local_shape = tuple(np.asarray(image_layer.data).shape)
+        if tuple(shape) != local_shape:
+            self._stop_processing("✗ Orientation mismatch!", restore_submit=True)
+            show_error(
+                f"Server reoriented shape {tuple(shape)} != displayed shape {local_shape}. "
+                "The client and server nnU-Net versions may differ; aborting to avoid "
+                "misaligned masks."
+            )
+            return
+        self._start_remote_job(image_id, image_layer, prompts, separate, keep_largest)
+
+    def _start_remote_job(self, image_id, image_layer, prompts, separate, keep_largest):
+        """Start streaming a remote segmentation job for an already-uploaded image."""
+        self._start_processing("Segmenting on server...", cancellable=True)
+        self.processing_thread = RemoteProcessingThread(
+            self.remote_client, image_id, prompts, keep_largest=keep_largest
+        )
+        self.processing_thread.finished.connect(
+            lambda masks: self._on_processing_finished(masks, image_layer, prompts, separate)
+        )
+        self.processing_thread.progress.connect(self._on_progress)
+        self.processing_thread.cancelled.connect(self._on_processing_cancelled)
+        self.processing_thread.oom_fallback.connect(self._on_oom_fallback)
+        self.processing_thread.error.connect(self._on_processing_error)
+        self.processing_thread.start()
+
+    def _submit_local(self):
         """
         Handle text submission and run segmentation.
         """
@@ -564,7 +861,7 @@ class VoxtellWidget(VoxtellGUI):
             for layer in self._viewer.layers
             if isinstance(layer, Labels)
             and layer.metadata.get("voxtell_source") == image_layer.name
-            and layer.metadata.get("voxtell_props") is not None
+            and layer.metadata.get("voxtell_legend")
         ]
         if not layers:
             show_warning(
@@ -599,11 +896,7 @@ class VoxtellWidget(VoxtellGUI):
                 combined[data == src_value] = value
                 legend[value] = name
 
-        props = layers[0].metadata["voxtell_props"]
-        try:
-            NibabelIOWithReorient().write_seg(combined, path, props)
-        except Exception as e:  # noqa: BLE001 - surface any write failure to the user
-            show_error(f"Failed to save: {e}")
+        if not self._write_multilabel(combined, path, image_layer, layers):
             return
 
         # Sidecar legend mapping label value -> prompt name.
@@ -615,3 +908,37 @@ class VoxtellWidget(VoxtellGUI):
             f"Saved {len(legend)} labels for '{image_layer.name}' to "
             f"{os.path.basename(path)}: " + ", ".join(f"{k}={v}" for k, v in legend.items())
         )
+
+    def _write_multilabel(self, combined, path, image_layer, layers) -> bool:
+        """Write the merged labelmap in the image's original orientation. Returns success.
+
+        Prefers a local write via the image's stored ``voxtell_props`` (identical in both
+        modes for reader-loaded images). Images loaded through 'Open image on server' have
+        no local props, so those fall back to a server-side export.
+        """
+        props = image_layer.metadata.get("voxtell_props")
+        if props is None and layers:
+            props = layers[0].metadata.get("voxtell_props")
+        if props is not None and NibabelIOWithReorient is not None:
+            try:
+                NibabelIOWithReorient().write_seg(combined, path, props)
+            except Exception as e:  # noqa: BLE001 - surface any write failure to the user
+                show_error(f"Failed to save: {e}")
+                return False
+            return True
+
+        # Fallback: no local orientation metadata (button-loaded image) -> let the server
+        # write it back in the original orientation using its cached props.
+        image_id = image_layer.metadata.get("voxtell_image_id")
+        if image_id is not None and self.remote_client is not None:
+            try:
+                nifti_bytes = self.remote_client.export(image_id, combined)
+                with open(path, "wb") as handle:
+                    handle.write(nifti_bytes)
+            except Exception as e:  # noqa: BLE001 - surface any failure to the user
+                show_error(f"Failed to save: {e}")
+                return False
+            return True
+
+        show_error("Cannot save: no orientation metadata and no server image available.")
+        return False
