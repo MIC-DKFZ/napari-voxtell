@@ -24,12 +24,17 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 requires-python = ">=3.10"
+# The GUI machine loads/reorients images with the voxtell (nnU-Net) reader, so voxtell
+# is a core dependency. Remote mode only offloads inference to a voxtell-server over
+# HTTP (httpx + blosc2); loading, display and saving stay identical to local mode.
 dependencies = [
     "numpy",
     "qtpy",
     "napari[all]",
     "napari-nifti",
-    "voxtell"
+    "httpx",
+    "blosc2",
+    "voxtell",
 ]
 
 [project.optional-dependencies]

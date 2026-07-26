@@ -14,13 +14,22 @@ the resulting mask without any further reorientation.
 import os
 from typing import Callable, Optional
 
-from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
+try:
+    from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
+except ImportError:  # thin (remote-only) install without nnU-Net/torch
+    NibabelIOWithReorient = None
 
 SUPPORTED_SUFFIXES = (".nii", ".nii.gz")
 
 
 def napari_get_reader(path) -> Optional[Callable]:
-    """Return the VoxTell reader if ``path`` is a NIfTI file, else None."""
+    """Return the VoxTell reader if ``path`` is a NIfTI file, else None.
+
+    On a thin (remote-only) install nnU-Net is absent, so this reader stays inactive
+    and images are loaded through the widget's 'Open image on server' button instead.
+    """
+    if NibabelIOWithReorient is None:
+        return None
     candidate = path[0] if isinstance(path, list) else path
     if isinstance(candidate, str) and candidate.lower().endswith(SUPPORTED_SUFFIXES):
         return reader_function

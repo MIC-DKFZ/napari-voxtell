@@ -102,6 +102,9 @@ class VoxtellGUI(QWidget):
         # Add model selection
         _main_layout.addWidget(self._init_model_selection())
 
+        # Add local/remote inference-location toggle + connection settings
+        _main_layout.addWidget(self._init_server_mode())
+
         # Add initialization button
         _main_layout.addWidget(self._init_control_buttons())
 
@@ -125,6 +128,9 @@ class VoxtellGUI(QWidget):
 
         # Add stretch to push everything to the top
         _main_layout.addStretch()
+
+        # Apply the initial (Local) inference-mode layout now that every control exists.
+        self._set_mode_ui(False)
 
         # ...then wrap it in a scroll area so resizing the prompt/legend boxes makes
         # the panel scroll instead of forcing the napari window to grow (which would
@@ -216,7 +222,60 @@ class VoxtellGUI(QWidget):
 
         _layout.addLayout(_path_layout)
         _group_box.setLayout(_layout)
+        # Kept so remote mode can hide the (irrelevant) local model picker.
+        self._model_group = _group_box
         return _group_box
+
+    def _init_server_mode(self) -> QGroupBox:
+        """Local/remote toggle plus the remote server URL, API key and upload button."""
+        _group_box = QGroupBox("Inference Location:")
+        _layout = QVBoxLayout()
+
+        self.mode_selection = QComboBox()
+        self.mode_selection.addItems(["Local (this machine)", "Remote server"])
+        # Connect AFTER addItems so populating it does not fire the handler before the
+        # rest of the widgets (init button, etc.) exist.
+        self.mode_selection.currentIndexChanged.connect(self.on_mode_changed)
+        _layout.addWidget(self.mode_selection)
+
+        # Remote-only settings, shown only when "Remote server" is selected.
+        self._remote_box = QWidget()
+        _remote_layout = QVBoxLayout()
+        _remote_layout.setContentsMargins(0, 0, 0, 0)
+
+        _remote_layout.addWidget(QLabel("Server URL:"))
+        self.server_url_input = QLineEdit()
+        self.server_url_input.setPlaceholderText("http://127.0.0.1:1527")
+        _remote_layout.addWidget(self.server_url_input)
+
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.Password)
+        self.api_key_input.setPlaceholderText("API key (optional)")
+        _remote_layout.addWidget(self.api_key_input)
+
+        _hint = QLabel(
+            "Open a .nii/.nii.gz normally (drag-and-drop); it is uploaded to the "
+            "server automatically on the first Submit."
+        )
+        _hint.setWordWrap(True)
+        _hint.setStyleSheet("QLabel { color: gray; font-style: italic; }")
+        _remote_layout.addWidget(_hint)
+
+        self._remote_box.setLayout(_remote_layout)
+        _layout.addWidget(self._remote_box)
+
+        _group_box.setLayout(_layout)
+        return _group_box
+
+    def _is_remote(self) -> bool:
+        """True when the user has selected remote-server inference."""
+        return self.mode_selection.currentIndex() == 1
+
+    def _set_mode_ui(self, is_remote: bool):
+        """Show/hide the remote settings and relabel the init button for the mode."""
+        self._remote_box.setVisible(is_remote)
+        self._model_group.setVisible(not is_remote)
+        self.init_button.setText("Connect to server" if is_remote else "Initialize Model")
 
     def _clear_model_path(self):
         """Clear the model path input."""
@@ -490,3 +549,7 @@ class VoxtellGUI(QWidget):
 
     def on_cancel(self):
         """Handle cancel button click - to be implemented in subclass."""
+
+    def on_mode_changed(self):
+        """Handle local/remote mode change - to be implemented in subclass."""
+        self._set_mode_ui(self._is_remote())
