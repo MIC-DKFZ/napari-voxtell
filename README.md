@@ -67,7 +67,7 @@ pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorc
 During the current community **test phase**, install the latest version directly from git:
 
 ```bash
-pip install "git+https://git.dkfz.de/mic/personal/group1/personal-projects/napari-voxtell.git@feature/ux-orientation-presets"
+pip install "git+https://github.com/MIC-DKFZ/napari-voxtell.git"
 ```
 
 > [!NOTE]
@@ -79,7 +79,7 @@ pip install "git+https://git.dkfz.de/mic/personal/group1/personal-projects/napar
 For development, clone and install in editable mode (you can also use [uv](https://docs.astral.sh/uv/)):
 
 ```
-git clone https://git.dkfz.de/mic/personal/group1/personal-projects/napari-voxtell.git
+git clone https://github.com/MIC-DKFZ/napari-voxtell.git
 cd napari-voxtell
 pip install -e .
 ```
