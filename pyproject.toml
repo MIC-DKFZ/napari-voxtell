@@ -5,7 +5,7 @@ description = "Voxtell - Text-promptable segmentation plugin for Napari"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-  { name = "Benjamin Hamm", email = "benjamin.hamm @dkfz-heidelberg.de"},
+  { name = "Benjamin Hamm", email = "benjamin.hamm@dkfz-heidelberg.de"},
   { name = "Maximilian Rokuss", email = "maximilian.rokuss@dkfz-heidelberg.de"}
 ]
 classifiers = [
@@ -17,7 +17,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -34,7 +33,7 @@ dependencies = [
     "napari-nifti",
     "httpx",
     "blosc2",
-    "voxtell",
+    "voxtell>=0.1.2",  # first PyPI release with the progress/cancel hook (progress_callback)
 ]
 
 [project.optional-dependencies]

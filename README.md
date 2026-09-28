@@ -12,7 +12,7 @@
 
 </div>
 
-<img src="imgs/Logos/VoxTellPluginLogo.png" alt="VoxTell Logo"/>
+<img src="https://raw.githubusercontent.com/MIC-DKFZ/napari-voxtell/main/imgs/Logos/VoxTellPluginLogo.png" alt="VoxTell Logo"/>
 
 ## Description
 
@@ -49,32 +49,33 @@ conda activate voxtell
 
 ### 2. Install PyTorch
 
-> [!WARNING]
-> **Temporary Compatibility Warning**  
-> There is a known issue with **PyTorch 2.9.0** causing **OOM errors during inference** (related to 3D convolutions — see the PyTorch issue [here](https://github.com/pytorch/pytorch/issues/166122)).  
-> **Until this is resolved, please use PyTorch 2.8.0 or earlier.**
-
 Install PyTorch compatible with your CUDA version. For example, for Ubuntu with a modern Nvidia GPU:
 
 ```
-pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu126
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
+
+Any PyTorch >= 2.1.2 works except the 2.9.x series, which has a 3D-convolution memory
+regression ([pytorch#166122](https://github.com/pytorch/pytorch/issues/166122); also excluded by
+VoxTell and nnU-Net).
 
 *For other configurations (Mac, CPU, different CUDA versions), please refer to the [PyTorch Get Started](https://pytorch.org/get-started/previous-versions/) page.*
 
 ### 3. Install napari-voxtell
 
-During the current community **test phase**, install the latest version directly from git:
+Install the latest release from PyPI (this also installs
+[VoxTell](https://github.com/MIC-DKFZ/VoxTell) 0.1.2 or newer for local inference):
+
+```bash
+pip install napari-voxtell
+```
+
+For the development version (the `main` branch, which may contain unreleased changes), install
+directly from GitHub:
 
 ```bash
 pip install "git+https://github.com/MIC-DKFZ/napari-voxtell.git"
 ```
-
-> [!NOTE]
-> The PyPI release (`pip install napari-voxtell`) will follow after the test phase. The plugin
-> depends on `voxtell` from PyPI; the live progress bar and mid-run Cancel button additionally
-> require the upcoming `voxtell` release and light up automatically once it is available — until
-> then the plugin runs normally and reports results when finished.
 
 For development, clone and install in editable mode (you can also use [uv](https://docs.astral.sh/uv/)):
 
@@ -133,7 +134,7 @@ napari path/to/your/image.nii.gz -w napari-voxtell
 
 
 <p align="center">
-    <img src="imgs/gui.png" alt="napari-voxtell GUI">
+    <img src="https://raw.githubusercontent.com/MIC-DKFZ/napari-voxtell/main/imgs/gui.png" alt="napari-voxtell GUI">
 </p>
 
 Please carefully review all segmentation outputs. Model performance varies with anatomical complexity, imaging quality, spacing, and prompt clarity. This tool is intended for research exploration, not validated clinical workflows.
@@ -200,5 +201,5 @@ The remote (client/server) inference mode is inspired by MIC-DKFZ's
 [napari-nninteractive](https://github.com/MIC-DKFZ/napari-nninteractive) (Apache-2.0).
 
 <p align="left">
-  <img src="imgs/Logos/DKFZ_Logo.png" width="500">
+  <img src="https://raw.githubusercontent.com/MIC-DKFZ/napari-voxtell/main/imgs/Logos/DKFZ_Logo.png" width="500">
 </p>
