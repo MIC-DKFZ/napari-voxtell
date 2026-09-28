@@ -1,6 +1,5 @@
 import contextlib
 import gc
-import inspect
 import json
 import os
 from typing import Optional
@@ -33,28 +32,18 @@ except ImportError:  # pragma: no cover
     NibabelIOWithReorient = None
 
 try:
-    from voxtell.inference.predictor import VoxTellPredictor
+    from voxtell.inference.predictor import InferenceCancelled, VoxTellPredictor
 
     _HAS_VOXTELL = True
 except ImportError:  # pragma: no cover
     VoxTellPredictor = None
     _HAS_VOXTELL = False
 
-try:  # older voxtell releases lack cooperative cancellation
-    from voxtell.inference.predictor import InferenceCancelled
-except ImportError:  # pragma: no cover
-
-    class InferenceCancelled(RuntimeError):
+    class InferenceCancelled(RuntimeError):  # keeps the except clauses valid without voxtell
         pass
 
 
 from napari_voxtell.widget_gui import VoxtellGUI
-
-# Whether the installed voxtell supports the progress/cancel hook.
-_PREDICT_SUPPORTS_PROGRESS = (
-    _HAS_VOXTELL
-    and "progress_callback" in inspect.signature(VoxTellPredictor.predict_single_image).parameters
-)
 
 # Qualitative palette cycled across generated segmentation layers so each prompt
 # gets a visually distinct colour (RGB in 0-1).
@@ -137,10 +126,9 @@ class ProcessingThread(QThread):
         (num_prompts, Z, Y, X).
         """
         self.predictor.perform_everything_on_device = on_device
-        kwargs = {"progress_callback": self._progress_cb} if _PREDICT_SUPPORTS_PROGRESS else {}
-        return self.predictor.predict_single_image(self.image_data, prompts, **kwargs).astype(
-            np.uint8
-        )
+        return self.predictor.predict_single_image(
+            self.image_data, prompts, progress_callback=self._progress_cb
+        ).astype(np.uint8)
 
     @staticmethod
     def _is_oom(err) -> bool:
@@ -161,7 +149,7 @@ class ProcessingThread(QThread):
         if not (torch.cuda.is_available() and getattr(device, "type", "") == "cuda"):
             return n_prompts
         try:
-            free, _ = torch.cuda.mem_get_info()
+            free, _ = torch.cuda.mem_get_info(device)
         except Exception:  # noqa: BLE001 - any failure -> just try all prompts at once
             return n_prompts
         voxels = int(np.prod(self.image_data.shape[-3:]))
@@ -507,7 +495,7 @@ class VoxtellWidget(VoxtellGUI):
         if not _HAS_VOXTELL or torch is None:
             show_error(
                 "Local inference requires the 'voxtell' package. Install it with "
-                "'pip install napari-voxtell[local]', or switch to Remote server mode."
+                "'pip install voxtell', or switch to Remote server mode."
             )
             return
 
